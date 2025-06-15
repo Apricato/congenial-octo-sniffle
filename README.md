@@ -1,45 +1,103 @@
+# 📘 README - TAREA 2: GRAFICACIÓN
+
+**Universidad Autónoma del Estado de Aguascalientes**  
+**Ingeniería en Computación Inteligente**  
+**Asignatura:** Graficación  
+**Profesor:** M.C. Hermilo Sánchez Cruz  
+**Alumno:** Tania López Ibarra — ID: 336673  
+**Fecha de entrega:** 25/05/2025  
+
+---
+
+## 📁 ESTRUCTURA DE CARPETAS
+
+📁 images/ → Imágenes originales del dataset MPEG7 (.gif, .png)
+📁 image_ruido/ → Versión ruidosa de las imágenes para prueba de limpieza
+📁 escaladas/ → Imágenes escaladas para igualar la cantidad de píxeles 1
+📁 cuadriculadas/ → Imágenes con celdas cuadradas dibujadas donde hay píxeles 1
+📁 contornos/ → Contornos obtenidos por vecindad-8 (por erosión)
+📁 trasladadas/ → Imágenes trasladadas + tabla con centroide y momentos
+📁 rotadas/ → Imágenes rotadas 45° + tabla con momentos de Hu antes/después
+📁 morfologia/
+├── ruido/ → Imágenes tras aplicar apertura para quitar ruido (solo image_ruido)
+├── suavizado/ → Imágenes con cierre (closing) para suavizar bordes
+├── relleno/ → Imágenes con huecos internos rellenados
+└── esqueleto/ → Imágenes con esqueletización
+📄 Reporte_Tarea2.pdf → Documento principal del trabajo
+📄 reporte_morfologia.csv → Tabla de momentos morfológicos por imagen
+📄 readme.txt → Este archivo
+
+Mostrar siempre los detalles
 
 
+---
 
+## ⚙️ REQUISITOS PARA EJECUTAR
 
+- Python 3.8 o superior
+- Librerías necesarias:
 
+pip install numpy pillow opencv-python pandas matplotlib scikit-image
 
-### CONOCIMIENTO TEORICO DE LA TAREA 2: GRAFICACIÓN ###
-__________________________________________________________
+Mostrar siempre los detalles
 
-## Descripción
+---
 
-Este proyecto procesa 10 imágenes binarias de objetos tomados del dataset MPEG-7. Las actividades cubren procesamiento básico, morfología matemática, y análisis de invariantes.
+## 📝 DESCRIPCIÓN DE LOS PROGRAMAS
 
---
-## Descripción
+### 1. Conteo de píxeles 1
+- Desde `images/`, binariza y cuenta píxeles del objeto (valor 1).
 
-1. **Selección de imágenes binarizadas** (blanco y negro)
+### 2. Escalamiento
+- Escala imágenes para igualar el área (número de 1-pixeles).
+- Centra en lienzo común. Resultado: `escaladas/`.
 
-No tiene chiste, son imagenes en formato .gif
+### 3. Momentos normalizados ηpq
+- Calcula ηpq antes y después de escalar. Confirma invariancia de escala.
 
-2. **Conteo de píxeles del objeto** (`1` o `0`, dependiendo del formato)
+### 4. Celdas rosas
+- Dibuja celdas sobre píxeles 1 (color rosa). Resultado: `cuadriculadas/`.
 
+### 5. Contornos
+- Usa vecindad-8 mediante erosión y resta. Resultado: `contornos/`.
 
-donde los pixeles cero corresponden al pixel negro.
-Pregunta los uno pixeles se entienden como los pixeles prendidos, aunque en general en el tratamiento de imagenes deberia entenderse que los pixeles 1 son los negros y los blancos representan el cero.
+### 6. Traslación
+- Desplaza figuras, calcula nuevo centroide y momentos μpq. Resultado: `trasladadas/`.
 
-3. **Escalado para igualar área del objeto**
+### 7. Rotación
+- Rota imágenes 45°. Calcula momentos de Hu antes/después. Resultado: `rotadas/`.
 
-El valor de a o el factor de escala serra a el cual representa o corresponde a  :
+### 8. Morfología
+- Aplica operadores sobre `escaladas/` y `image_ruido/`.
+- **ruido** (apertura): limpia imágenes ruidosas
+- **suavizado** (cierre): suaviza bordes
+- **relleno**: rellena huecos
+- **esqueleto**: genera esqueletos
 
-![alt text](image.png)
-a= raiz de area deseada sobre area actual
-donde el are deseada es el area promedio sobre el area actual la cual es la cantidad de uno pixeles disponibles en la imagen
+Resultados guardados en: `morfologia/` con subcarpetas por operación.
 
+---
 
-4. **Cálculo de invariantes de escala** `η_pq`
-5. **Obtención de contornos** (vecindad-8)
-6. **Cálculo del centro de masa y momentos centrales**
-7. **Rotaciones y momentos de Hu**
-8. **Aplicación de operadores morfológicos**:
-   - Eliminación de ruido
-   - Suavizado de bordes
-   - Relleno de huecos
-   - Esqueletización
-9. **Análisis y conclusiones**
+## 📊 ARCHIVOS DE RESULTADO
+
+- `reporte_morfologia.csv` → tabla con conteo de píxeles 1 por operación
+- Tablas adicionales se imprimen por consola y se incluyen en el PDF
+
+---
+
+## 📌 NOTAS
+
+- Las imágenes `.gif` se convierten a `.png` para compatibilidad con OpenCV.
+- ηpq permanece casi constante tras escalamiento → ✔ invariante
+- Momentos de Hu estables ante rotación → ✔ invariante
+- Las operaciones morfológicas cumplen con su función:
+- Apertura limpia ruido
+- Cierre suaviza bordes
+- Relleno cierra huecos internos
+- Esqueleto reduce a líneas centrales
+
+---
+
+## ✅ CONCLUSIÓN
+
+Esta práctica aplica procesamiento binario, análisis morfológico, transformaciones geométricas y momentos invariantes para caracterizar objetos. Los resultados validan la teoría y refuerzan el uso de morfología matemática en visión computacional.
