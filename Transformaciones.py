@@ -10,12 +10,15 @@ _______________________________________________________________________
 '''
 
 import numpy as np  # Para operaciones matemáticas
-from PIL import Image
+from PIL import Image, ImageDraw
 import os
 import math
 import cv2  # Para cálculo de momentos
+import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
+from skimage.morphology import opening, closing, disk, skeletonize
+from scipy.ndimage import binary_fill_holes
 
 # PARTE 1: Cargar los archivos necesarios de las imágenes
 carpeta = "images"
@@ -41,24 +44,60 @@ for archive in os.listdir(carpeta):
         print(f"{archive}: {cantidad} píxeles del objeto (1-pixel)")
 
 # PARTE 3: Escalamiento
-def calcular_factor_escala(area_original, area_deseada):
-    return math.sqrt(area_deseada / area_original)
 
-promedio_area = sum([area for _, area in one_pixel_results]) / len(one_pixel_results)
-print(f"\nPromedio de área objetivo: {promedio_area:.2f}")
+# Valores ya recolectados:
+one_pixel_e = [
+    ('crown-1.gif', 160763),
+    ('device0-1.gif', 79096),
+    ('device8-1.gif', 88636),
+    ('flatfish-1.gif', 98532),
+    ('flower_six.gif', 71589),
+    ('frog-1.gif', 41779),
+    ('heart.gif', 116621),
+    ('tomato.gif', 28279),
+    ('triangle.gif', 84957),
+    ('turtle-1.gif', 25343),
+]
 
-for nombre_archivo, area_actual in one_pixel_results:
-    factor_a = calcular_factor_escala(area_actual, promedio_area)
-    ruta_entrada = os.path.join(carpeta, nombre_archivo)
-    imagen = Image.open(ruta_entrada)
-    nuevo_tamano = (
-        int(imagen.width * factor_a),
-        int(imagen.height * factor_a)
-    )
-    imagen_escalada = imagen.resize(nuevo_tamano, resample=Image.NEAREST)
-    ruta_salida = os.path.join(output_dir, f"escalada_{nombre_archivo}")
-    imagen_escalada.save(ruta_salida)
-    print(f"{nombre_archivo}: Escalado con factor a = {factor_a:.3f}, nuevo tamaño: {nuevo_tamano}")
+# Promedio de píxeles 1 
+promedio = 79559 
+print(f"Promedio de 1-pixeles objetivo: {promedio}")
+
+carpeta = "images"
+output_dir = "escaladas"
+os.makedirs(output_dir, exist_ok=True)
+
+# Dimensiones finales (más grande de todas)
+final_w, final_h = 623, 558
+
+# Escalar y centrar cada imagen
+for nombre_archivo, pixeles_1 in one_pixel_e:
+    ruta = os.path.join(carpeta, nombre_archivo)
+    img = Image.open(ruta).convert('L')
+    
+    # Binarizar
+    arr = np.array(img)
+    binaria = np.where(arr < 128, 0, 1)
+    
+    # Calcular factor de escala: α = sqrt(promedio / pixeles actuales)
+    alpha = math.sqrt(promedio / pixeles_1)
+    
+    # Redimensionar (manteniendo proporción)
+    nuevo_ancho = int(img.width * alpha)
+    nuevo_alto = int(img.height * alpha)
+    img_redimensionada = img.resize((nuevo_ancho, nuevo_alto), Image.Resampling.LANCZOS)
+    
+    # Centrar en imagen final de 703x693
+    lienzo = Image.new("L", (final_w, final_h), color=0)  # fondo negro
+    offset_x = (final_w - nuevo_ancho) // 2
+    offset_y = (final_h - nuevo_alto) // 2
+    lienzo.paste(img_redimensionada, (offset_x, offset_y))
+
+    # Guardar en carpeta "escaladas"
+    salida = os.path.join(output_dir, nombre_archivo)
+    lienzo.save(salida)
+    
+    print(f"{nombre_archivo} → Factor a = {alpha:.4f} ")
 
 # PARTE 4: Momentos Normalizados ηpq
 def calcular_eta_pq(binaria, max_p=2, max_q=2):
@@ -104,7 +143,7 @@ for archivo, _ in one_pixel_results:
     eta_original = calcular_eta_pq(binaria)
 
     # Imagen escalada
-    ruta_escalada = os.path.join(output_dir, f"escalada_{archivo}")
+    ruta_escalada = os.path.join(output_dir, f"{archivo}")
     img_s = Image.open(ruta_escalada).convert('L')
     arr_s = np.array(img_s)
     binaria_s = np.where(arr_s < 128, 1, 0)
@@ -118,75 +157,51 @@ for archivo, _ in one_pixel_results:
     for key in sorted(eta_escalada):
         print(f"  η{key[0]}{key[1]} = {eta_escalada[key]:.6f}")
 
-# PARTE 5: 
 
 
-def graficar_pixeles_binarios(imagen_binaria, nombre):
-    h, w = imagen_binaria.shape
-    fig, ax = plt.subplots()
-    ax.set_aspect('equal')
+# PARTE 5: Graficar las celdas de 1-pixeles con color rosita Barbie
 
-    for y in range(h):
-        for x in range(w):
-            if imagen_binaria[y, x] == 255:
-                rect = Rectangle((x, h - y - 1), 1, 1, edgecolor='black', facecolor='none', linewidth=0.5)
-                ax.add_patch(rect)
+input_dir = "escaladas"
+output_dir = "cuadriculadas"
+os.makedirs(output_dir, exist_ok=True)
 
-    ax.set_xlim(0, w)
-    ax.set_ylim(0, h)
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.set_title(f"Contorno de píxeles '1' en {nombre}")
-    plt.gca().invert_yaxis()
-    plt.tight_layout()
-    plt.show()
+block_size = 5  # Tamaño de los bloques (puedes cambiar a 5 si quieres)
 
-def calcular_momento_central(p, q, imagen_binaria, x_cm, y_cm):
-    indices_y, indices_x = np.where(imagen_binaria == 255)
-    if len(indices_x) == 0:
-        return 0.0  # No píxeles blancos
-    dx = indices_x - x_cm
-    dy = indices_y - y_cm
-    return np.sum((dx ** p) * (dy ** q))
+def marcar_areas_fondo_blanco(imagen_path, block_size=3):
+    img = Image.open(imagen_path).convert('L')
+    arr = np.array(img)
+    
+    # Binarizar: objeto=1, fondo=0
+    binaria = np.where(arr > 128, 1, 0)
+    
+    h, w = binaria.shape
+    
+    # Imagen RGB blanca (fondo blanco y objeto blanco)
+    img_rgb = Image.new('RGB', (w, h), color=(255, 255, 255))
+    draw = ImageDraw.Draw(img_rgb)
+    
+    color_linea = (255, 0, 255)  # rosa
+    
+    # Dibujar cuadrícula rosa solo donde hay objeto
+    for y in range(0, h, block_size):
+        for x in range(0, w, block_size):
+            bloque = binaria[y:y+block_size, x:x+block_size]
+            if np.any(bloque == 1):
+                draw.rectangle(
+                    [x, y, min(x+block_size-1, w-1), min(y+block_size-1, h-1)],
+                    outline=color_linea
+                )
+    return img_rgb
 
-input_dir = "binarias"
-
-print("=== Punto 5: Visualizando contornos de los píxeles 1 ===")
-
+# Procesar todas las imágenes en la carpeta de entrada
 for archivo in os.listdir(input_dir):
-    if archivo.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp')):
-        ruta = os.path.join(input_dir, archivo)
-
-        img = cv2.imread(ruta, cv2.IMREAD_GRAYSCALE)
-        _, binaria = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
-
-        print(f"\n📄 escalada_imagen_{archivo}")
-
-        indices_y, indices_x = np.where(binaria == 255)
-        if len(indices_x) == 0:
-            print("❗ Imagen sin píxeles blancos. Saltando.")
-            continue
-
-        x_cm = np.mean(indices_x)
-        y_cm = np.mean(indices_y)
-        print(f"Centro de masa original: x_cm = {x_cm:.2f}, y_cm = {y_cm:.2f}")
-
-        momentos_tras = {}
-        for p in range(3):
-            for q in range(3):
-                clave = f"mu{p}{q}"
-                momentos_tras[clave] = calcular_momento_central(p, q, binaria, x_cm, y_cm)
-
-        print("=== Momentos centrales μpq tras traslación ===")
-        for p in range(3):
-            for q in range(3):
-                clave = f"mu{p}{q}"
-                valor = momentos_tras.get(clave, 0.0)
-                print(f"μ{p}{q} (trasladada): {valor:.5e}")
-
-        print(f"📄 Mostrando contornos para: {archivo}")
-        graficar_pixeles_binarios(binaria, archivo)
-
+    if archivo.lower().endswith(('.png', '.gif', '.jpg', '.jpeg')):
+        ruta_entrada = os.path.join(input_dir, archivo)
+        imagen_procesada = marcar_areas_fondo_blanco(ruta_entrada, block_size)
+        
+        ruta_salida = os.path.join(output_dir, archivo)
+        imagen_procesada.save(ruta_salida)
+        print(f"Procesada y guardada: {archivo}")
 
 #PARTE 6: Obtención de contornos de la figura seis
 
@@ -195,7 +210,7 @@ os.makedirs(contour_output_dir, exist_ok=True)
 
 # Función para obtener el contorno usando erosión
 def obtener_contorno(binaria):
-    kernel = np.ones((3, 3), np.uint8)
+    kernel = np.ones((3, 3), np.uint8) #kernel  
     erosionada = cv2.erode(binaria.astype(np.uint8), kernel, iterations=1)
     contorno = binaria - erosionada
     return contorno
@@ -217,125 +232,211 @@ for archivo in os.listdir("escaladas"):
 
 #PARTE 7: 
 
-input_dir = "escaladas" 
+# === PARÁMETROS ===
+input_folder  = 'images'       # Carpeta con tus .gif binarios
+output_folder = 'trasladadas'  # Carpeta donde se guardarán las imágenes trasladadas
+os.makedirs(output_folder, exist_ok=True)
 
-def trasladar_imagen(img, dx, dy):
-    h, w = img.shape
-    M = np.float32([[1, 0, dx], [0, 1, dy]])
-    trasladada = cv2.warpAffine(img, M, (w, h), borderValue=0)
-    return trasladada
+shift_x, shift_y = 50, 50      # Ajusta estos valores para mayor o menor desplazamiento
 
-print("=== Momentos centrales μpq tras traslación ===")
+# === PROCESAMIENTO y CÁLCULO ===
+records = []
 
-for archivo in os.listdir(input_dir):
-    if archivo.endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
-        ruta = os.path.join(input_dir, archivo)
-        img = cv2.imread(ruta, cv2.IMREAD_GRAYSCALE)
-        _, binaria = cv2.threshold(img, 127, 1, cv2.THRESH_BINARY)
+for filename in sorted(os.listdir(input_folder)):
+    if not filename.lower().endswith('.gif'):
+        continue
 
-        # Calcular centro de masa original
-        momentos = cv2.moments(binaria)
-        if momentos["m00"] == 0:
-            continue  # Evita división por cero si la imagen está vacía
-        x_cm = momentos["m10"] / momentos["m00"]
-        y_cm = momentos["m01"] / momentos["m00"]
+    # 1) Leer y binarizar la imagen original
+    img = Image.open(os.path.join(input_folder, filename)).convert('L')
+    arr = np.array(img)
+    _, binary = cv2.threshold(arr, 127, 1, cv2.THRESH_BINARY)
 
-        # Trasladar imagen (por ejemplo, mover +30 px en x, +20 px en y)
-        img_trasladada = trasladar_imagen(binaria.astype(np.uint8)*255, 30, 20)
-        img_trasladada_bin = np.where(img_trasladada > 127, 1, 0).astype(np.uint8)
+    # 2) Trasladar píxel a píxel
+    translated = np.zeros_like(binary)
+    coords = np.column_stack(np.where(binary > 0))
+    shifted = coords.copy()
+    shifted[:, 1] += shift_x  # X += shift_x
+    shifted[:, 0] += shift_y  # Y += shift_y
+    # Filtrar coordenadas válidas
+    valid = (
+        (shifted[:, 0] >= 0) & (shifted[:, 0] < binary.shape[0]) &
+        (shifted[:, 1] >= 0) & (shifted[:, 1] < binary.shape[1])
+    )
+    shifted = shifted[valid]
+    translated[shifted[:, 0], shifted[:, 1]] = 1
 
-        # Calcular momentos centrales tras traslado
-        momentos_tras = cv2.moments(img_trasladada_bin)
+    # Guardar la imagen trasladada
+    base = os.path.splitext(filename)[0]
+    cv2.imwrite(
+        os.path.join(output_folder, f"trasladada_{base}.png"),
+        translated * 255
+    )
 
-        print(f"\n📄 {archivo}")
-        print(f"Centro de masa original: x_cm = {x_cm:.2f}, y_cm = {y_cm:.2f}")
-        for p in range(3):
-            for q in range(3):
-                if p + q <= 2:
-                    clave = f"mu{p}{q}"
-                    print(f"μ{p}{q} (trasladada): {momentos_tras[clave]:.5e}")
+    # 3) Centro de masa y momentos μ_pq para p,q=0,1,2
+    y_t, x_t = shifted[:, 0], shifted[:, 1]
+    x_cm = x_t.mean()
+    y_cm = y_t.mean()
 
+    moments = {}
+    for p in range(3):
+        for q in range(3):
+            moments[(p, q)] = np.sum((x_t - x_cm)**p * (y_t - y_cm)**q)
 
+    # 4) Almacenar registro
+    record = {
+        'imagen': filename,
+        'x_cm': round(x_cm, 2),
+        'y_cm': round(y_cm, 2),
+    }
+    for (p, q), val in moments.items():
+        record[f'mu_{p}{q}'] = round(val, 2)
+    records.append(record)
+
+# === CREAR TABLA con pandas ===
+df = pd.DataFrame(records)
+
+# Orden de columnas
+cols = [
+    'imagen', 'x_cm', 'y_cm',
+    'mu_00', 'mu_01', 'mu_10', 'mu_11', 'mu_02', 'mu_20', 'mu_12', 'mu_21', 'mu_22'
+]
+df = df[cols]
+
+# Imprimir tabla en Markdown
+try:
+    print(df.to_markdown(index=False))
+except ImportError:
+    pd.set_option('display.max_columns', None)
+    print(df.to_string(index=False))
+
+print(f"\nDesplazamiento aplicado: {shift_x}px en X, {shift_y}px en Y")
 
 
 
 
 #PARTE 8: CALCULO DE MOMENTOS TRAS ROTAS
 
-# --- Función para rotar una imagen binaria ---
-def rotar_imagen(imagen, angulo):
-    h, w = imagen.shape
-    centro = (w // 2, h // 2)
-    M = cv2.getRotationMatrix2D(centro, angulo, 1.0)
-    rotada = cv2.warpAffine(imagen, M, (w, h), flags=cv2.INTER_NEAREST, borderValue=0)
-    return rotada
+input_folder  = 'escaladas'    # Carpeta con imágenes escaladas (binary 0/1)
+output_folder = 'rotadas'      # Carpeta para imágenes rotadas
+os.makedirs(output_folder, exist_ok=True)
 
-# --- Función para calcular los 3 primeros momentos de Hu explícitamente ---
-def calcular_phi_momentos(binaria):
-    m = cv2.moments(binaria)
+theta = 45  # Ángulo de rotación (grados)
 
-    mu20 = m['mu20']
-    mu02 = m['mu02']
-    mu11 = m['mu11']
-    mu30 = m['mu30']
-    mu12 = m['mu12']
-    mu21 = m['mu21']
-    mu03 = m['mu03']
+def central_moments(binary):
+    # Coordenadas de píxeles=1
+    ys, xs = np.nonzero(binary)
+    x_bar, y_bar = xs.mean(), ys.mean()
+    mu = {}
+    for p in range(4):
+        for q in range(4):
+            if p+q <= 3:
+                mu[(p,q)] = ((xs - x_bar)**p * (ys - y_bar)**q).sum()
+    return mu
 
-    phi1 = mu20 + mu02
-    phi2 = (mu20 - mu02)**2 + 4 * mu11**2
-    phi3 = (mu30 - 3 * mu12)**2 + (3 * mu21 - mu03)**2
+# Guardar resultados
+records = []
+for fn in sorted(os.listdir(input_folder)):
+    if not fn.lower().endswith(('.png', '.gif', '.jpg', '.jpeg', '.bmp')):
+        continue
+    # Leer y umbralizar
+    img = Image.open(os.path.join(input_folder, fn)).convert('L')
+    arr = np.array(img)
+    _, bin0 = cv2.threshold(arr, 127, 1, cv2.THRESH_BINARY)
+    
+    # momentos originales
+    mu0 = central_moments(bin0)
+    # invariantes antes
+    phi1_0 = mu0[(2,0)] + mu0[(0,2)]
+    phi2_0 = (mu0[(2,0)] - mu0[(0,2)])**2 + 4*(mu0[(1,1)]**2)
+    phi3_0 = (mu0[(3,0)] - 3*mu0[(1,2)])**2 + (3*mu0[(2,1)] - mu0[(0,3)])**2
 
-    return phi1, phi2, phi3
+    # rotar alrededor del centro de la imagen
+    h, w = bin0.shape
+    M = cv2.getRotationMatrix2D((w/2, h/2), theta, 1.0)
+    rot_raw = cv2.warpAffine((bin0*255).astype(np.uint8), M, (w, h), borderValue=0)
+    _, bin1 = cv2.threshold(rot_raw, 127, 1, cv2.THRESH_BINARY)
+    cv2.imwrite(os.path.join(output_folder, f"rotada_{os.path.splitext(fn)[0]}.png"), bin1*255)
+    
+    # momentos rotados
+    mu1 = central_moments(bin1)
+    phi1_1 = mu1[(2,0)] + mu1[(0,2)]
+    phi2_1 = (mu1[(2,0)] - mu1[(0,2)])**2 + 4*(mu1[(1,1)]**2)
+    phi3_1 = (mu1[(3,0)] - 3*mu1[(1,2)])**2 + (3*mu1[(2,1)] - mu1[(0,3)])**2
+    
+    records.append({
+        'imagen':      fn,
+        'phi1_before': phi1_0,
+        'phi1_after':  phi1_1,
+        'phi2_before': phi2_0,
+        'phi2_after':  phi2_1,
+        'phi3_before': phi3_0,
+        'phi3_after':  phi3_1,
+    })
 
-# --- Ruta de las imágenes (ajústala a tu caso) ---
+# Tabla con pandas
+df = pd.DataFrame(records)[[
+    'imagen',
+    'phi1_before','phi1_after',
+    'phi2_before','phi2_after',
+    'phi3_before','phi3_after'
+]].round(2)
+
+print(df.to_markdown(index=False))
+print(f"\nRotación aplicada: {theta}°")
 
 #PARTE 9 APLICAR OPERADORES MORFOLOGICOS A LAS IMAGENES ESCALADAS?
 
-input_dir = 'escaladas'
-output_dir = 'morfologia'
-os.makedirs(output_dir, exist_ok=True)
 
-# Definir el kernel estructurante
-kernel = np.ones((3, 3), np.uint8)
+# === PARÁMETROS ===
+folder_ruido     = 'image_ruido'   # Solo para quitar ruido
+folder_general   = 'escaladas'     # Para suavizado, relleno y esqueleto
+output_root      = 'morfologia'    # Carpeta raíz para salidas
 
-# Procesar cada imagen en el directorio de entrada
-for archivo in os.listdir(input_dir):
-    if archivo.endswith(('.png', '.gif')):
-        ruta_entrada = os.path.join(input_dir, archivo)
-        ruta_salida = os.path.join(output_dir, archivo)
+# === OPERADORES MORFOLÓGICOS ===
+operations = {
+    'ruido':     {
+        'folder': folder_ruido,
+        'func':   lambda img: opening(img, disk(1))
+    },
+    'suavizado': {
+        'folder': folder_general,
+        'func':   lambda img: closing(img, disk(1))
+    },
+    'relleno':   {
+        'folder': folder_general,
+        'func':   lambda img: binary_fill_holes(img).astype(np.uint8)
+    },
+    'esqueleto': {
+        'folder': folder_general,
+        'func':   lambda img: skeletonize(img).astype(np.uint8)
+    }
+}
 
-        # Leer la imagen en escala de grises
-        imagen = cv2.imread(ruta_entrada, cv2.IMREAD_GRAYSCALE)
+# === CREAR CARPETAS DE SALIDA ===
+for op_name in operations:
+    os.makedirs(os.path.join(output_root, op_name), exist_ok=True)
 
-        # Binarizar la imagen
-        _, binaria = cv2.threshold(imagen, 127, 255, cv2.THRESH_BINARY)
-
-        # a) Quitar ruido: Apertura (erosión seguida de dilatación)
-        apertura = cv2.morphologyEx(binaria, cv2.MORPH_OPEN, kernel)
-
-        # b) Suavizar bordes: Cierre (dilatación seguida de erosión)
-        cierre = cv2.morphologyEx(apertura, cv2.MORPH_CLOSE, kernel)
-
-        # c) Rellenar huecos: Dilatación adicional
-        rellenada = cv2.dilate(cierre, kernel, iterations=1)
-
-        # d) Encontrar esqueletos: Transformada de distancia y umbralización
+# === PROCESAR OPERACIÓN POR OPERACIÓN ===
+for op_name, op_info in operations.items():
+    folder_in = op_info['folder']
+    op_func   = op_info['func']
     
-        distancia = cv2.distanceTransform(rellenada, cv2.DIST_L2, 5)
-        _, esqueleto = cv2.threshold(distancia, 0.4 * distancia.max(), 255, 0)
-        esqueleto = np.uint8(esqueleto)
+    for filename in sorted(os.listdir(folder_in)):
+        if not filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
+            continue
 
-        # Guardar las imágenes procesadas
-        nombre_base = os.path.splitext(archivo)[0]
-        cv2.imwrite(os.path.join(output_dir, f"{nombre_base}_apertura.png"), apertura)
-        cv2.imwrite(os.path.join(output_dir, f"{nombre_base}_cierre.png"), cierre)
-        cv2.imwrite(os.path.join(output_dir, f"{nombre_base}_rellenada.png"), rellenada)
-        cv2.imwrite(os.path.join(output_dir, f"{nombre_base}_esqueleto.png"), esqueleto)
+        # Leer imagen como binaria
+        img_path = os.path.join(folder_in, filename)
+        img_gray = np.array(Image.open(img_path).convert('L'))
+        binary   = (img_gray > 128).astype(np.uint8)
 
-        print(f"Procesamiento completo para {archivo}")
+        # Aplicar operador
+        result   = op_func(binary)
+        out_img  = (result * 255).astype(np.uint8)
+        
+        # Guardar siempre como .png
+        name, _ = os.path.splitext(filename)
+        out_path = os.path.join(output_root, op_name, f"{name}.png")
+        Image.fromarray(out_img).save(out_path)
 
-
-
-
-
+        print(f"✅ {filename} procesada con '{op_name}' y guardada como '{out_path}'")
