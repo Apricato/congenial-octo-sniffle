@@ -11,23 +11,23 @@
 
 ## 📁 ESTRUCTURA DE CARPETAS
 
-'''
-📁 images/ → Imágenes originales del dataset MPEG7 (.gif, .png)
-📁 image_ruido/ → Versión ruidosa de las imágenes para prueba de limpieza
-📁 escaladas/ → Imágenes escaladas para igualar la cantidad de píxeles 1
-📁 cuadriculadas/ → Imágenes con celdas cuadradas dibujadas donde hay píxeles 1
-📁 contornos/ → Contornos obtenidos por vecindad-8 (por erosión)
-📁 trasladadas/ → Imágenes trasladadas + tabla con centroide y momentos
-📁 rotadas/ → Imágenes rotadas 45° + tabla con momentos de Hu antes/después
-📁 morfologia/
-├── ruido/ → Imágenes tras aplicar apertura para quitar ruido (solo image_ruido)
-├── suavizado/ → Imágenes con cierre (closing) para suavizar bordes
-├── relleno/ → Imágenes con huecos internos rellenados
-└── esqueleto/ → Imágenes con esqueletización
+```
+📁 images/ → Imágenes originales del dataset MPEG7 (.gif, .png)  
+📁 image_ruido/ → Versión ruidosa de las imágenes para prueba de limpieza  
+📁 escaladas/ → Imágenes escaladas para igualar la cantidad de píxeles 1  
+📁 cuadriculadas/ → Imágenes con celdas cuadradas dibujadas donde hay píxeles 1  
+📁 contornos/ → Contornos obtenidos por vecindad-8 (por erosión)  
+📁 trasladadas/ → Imágenes trasladadas + tabla con centroide y momentos  
+📁 rotadas/ → Imágenes rotadas 45° + tabla con momentos de Hu antes/después  
+📁 morfologia/  
+├── ruido/ → Imágenes tras aplicar apertura para quitar ruido (solo image_ruido)  
+├── suavizado/ → Imágenes con cierre (closing) para suavizar bordes  
+├── relleno/ → Imágenes con huecos internos rellenados  
+└── esqueleto/ → Imágenes con esqueletización  
 
 📄 readme.txt → Este archivo
+```
 
-'''
 
 ## ⚙️ REQUISITOS PARA EJECUTAR
 
