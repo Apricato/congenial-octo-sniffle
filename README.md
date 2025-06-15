@@ -11,6 +11,7 @@
 
 ## 📁 ESTRUCTURA DE CARPETAS
 
+'''
 📁 images/ → Imágenes originales del dataset MPEG7 (.gif, .png)
 📁 image_ruido/ → Versión ruidosa de las imágenes para prueba de limpieza
 📁 escaladas/ → Imágenes escaladas para igualar la cantidad de píxeles 1
@@ -23,14 +24,10 @@
 ├── suavizado/ → Imágenes con cierre (closing) para suavizar bordes
 ├── relleno/ → Imágenes con huecos internos rellenados
 └── esqueleto/ → Imágenes con esqueletización
-📄 Reporte_Tarea2.pdf → Documento principal del trabajo
-📄 reporte_morfologia.csv → Tabla de momentos morfológicos por imagen
+
 📄 readme.txt → Este archivo
 
-Mostrar siempre los detalles
-
-
----
+'''
 
 ## ⚙️ REQUISITOS PARA EJECUTAR
 
@@ -77,11 +74,6 @@ Mostrar siempre los detalles
 Resultados guardados en: `morfologia/` con subcarpetas por operación.
 
 ---
-
-## 📊 ARCHIVOS DE RESULTADO
-
-- `reporte_morfologia.csv` → tabla con conteo de píxeles 1 por operación
-- Tablas adicionales se imprimen por consola y se incluyen en el PDF
 
 ---
 

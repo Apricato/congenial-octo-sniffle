@@ -159,6 +159,50 @@ for archivo, _ in one_pixel_results:
 
 
 
+# PARTE 5: Graficar las celdas de 1-pixeles con color rosita Barbie
+
+input_dir = "escaladas"
+output_dir = "cuadriculadas"
+os.makedirs(output_dir, exist_ok=True)
+
+block_size = 5  # Tamaño de los bloques
+
+def marcar_areas_fondo_blanco(imagen_path, block_size=3):
+    img = Image.open(imagen_path).convert('L')
+    arr = np.array(img)
+    
+    # Binarizar: objeto=1, fondo=0
+    binaria = np.where(arr > 128, 1, 0)
+    
+    h, w = binaria.shape
+    
+    # Imagen RGB blanca (fondo blanco y objeto blanco)
+    img_rgb = Image.new('RGB', (w, h), color=(255, 255, 255))
+    draw = ImageDraw.Draw(img_rgb)
+    
+    color_linea = (255, 0, 255)  # rosa
+    
+    # Dibujar cuadrícula rosa solo donde hay objeto
+    for y in range(0, h, block_size):
+        for x in range(0, w, block_size):
+            bloque = binaria[y:y+block_size, x:x+block_size]
+            if np.any(bloque == 1):
+                draw.rectangle(
+                    [x, y, min(x+block_size-1, w-1), min(y+block_size-1, h-1)],
+                    outline=color_linea
+                )
+    return img_rgb
+
+# Procesar todas las imágenes en la carpeta de entrada
+for archivo in os.listdir(input_dir):
+    if archivo.lower().endswith(('.png', '.gif', '.jpg', '.jpeg')):
+        ruta_entrada = os.path.join(input_dir, archivo)
+        imagen_procesada = marcar_areas_fondo_blanco(ruta_entrada, block_size)
+        
+        ruta_salida = os.path.join(output_dir, archivo)
+        imagen_procesada.save(ruta_salida)
+        print(f"Procesada y guardada: {archivo}")
+
 #PARTE 6: Obtención de contornos de la figura 
 
 contour_output_dir = "contornos"
